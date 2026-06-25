@@ -6,7 +6,6 @@ workflows:
     instance_type: mac_mini_m1
     environment:
       java: 17
-      android_sdk: 34
     triggering:
       events:
         - push
