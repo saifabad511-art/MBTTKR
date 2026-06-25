@@ -1,0 +1,8 @@
+{
+  "name": "Remix: مبتكر الذكي",
+  "description": "مساعد ابتكار وتصميم ذكي بالذكاء الاصطناعي لاقتراح الأفكار الإبداعية وتتبع إنجازها يومياً",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
