@@ -16,7 +16,22 @@ workflows:
     scripts:
       - name: Set up local.properties
         script: |
-          echo "sdk.dir=$ANDROID_SDK_ROOT" > local.properties
+          echo "sdk.dir=${ANDROID_SDK_ROOT:-/Library/Android/sdk}" > local.properties
+      - name: Set up .env configuration
+        script: |
+          cp .env.example .env
+          if [ ! -z "$GEMINI_API_KEY" ]; then
+            echo "GEMINI_API_KEY=$GEMINI_API_KEY" > .env
+          fi
+      - name: Set up debug keystore
+        script: |
+          if [ -f debug.keystore.base64 ]; then
+            if command -v python3 >/dev/null 2>&1; then
+              python3 -c "import base64; open('debug.keystore', 'wb').write(base64.b64decode(open('debug.keystore.base64', 'rb').read()))"
+            elif command -v base64 >/dev/null 2>&1; then
+              base64 --decode debug.keystore.base64 > debug.keystore 2>/dev/null || base64 -D -i debug.keystore.base64 -o debug.keystore
+            fi
+          fi
       - name: Build Android App (Debug APK)
         script: |
           gradle assembleDebug
