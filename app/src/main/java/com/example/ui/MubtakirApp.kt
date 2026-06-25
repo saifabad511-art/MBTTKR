@@ -26,6 +26,8 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import com.example.ui.screens.ActiveProjectsScreen
 import com.example.ui.screens.ArchiveScreen
 import com.example.ui.screens.InnovationHubScreen
+import com.example.ui.components.WelcomeMotivationDialog
+import com.example.ui.components.ConfettiCelebration
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -39,71 +41,18 @@ fun MubtakirApp(
 
     val isSyncing by viewModel.isSyncing.collectAsState()
     val cloudSyncEnabled by viewModel.cloudSyncEnabled.collectAsState()
+    val confettiTrigger by viewModel.confettiTrigger.collectAsState()
 
     if (showReminderDialog) {
-        AlertDialog(
-            onDismissRequest = { showReminderDialog = false },
-            icon = {
-                Icon(
-                    imageVector = Icons.Default.AutoAwesome,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(36.dp)
-                )
+        WelcomeMotivationDialog(
+            onDismiss = { showReminderDialog = false },
+            onAction = {
+                showReminderDialog = false
+                selectedTab = 1 // Switch to projects tab
             },
-            title = {
-                Text(
-                    text = "تذكير الأهداف اليومية 🎯",
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 20.sp,
-                    color = MaterialTheme.colorScheme.primary
-                )
-            },
-            text = {
-                Column(
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                    horizontalAlignment = Alignment.Start
-                ) {
-                    Text(
-                        text = "مرحباً بك في مُبتكِر الذكي! 👋",
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 16.sp
-                    )
-                    Text(
-                        text = "نود تذكيرك بالمرور على أهدافك ومشاريعك اليومية ومتابعة خطواتك البرمجية قيد التنفيذ اليوم.",
-                        fontSize = 14.sp,
-                        lineHeight = 20.sp
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = "💡 \"الخطوات الصغيرة والمنظمة تقود دائمًا إلى إنجازات برمجية عظيمة!\"",
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = MaterialTheme.colorScheme.secondary
-                    )
-                }
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        showReminderDialog = false
-                        selectedTab = 1 // Switch to projects tab
-                    },
-                    modifier = Modifier.testTag("reminder_confirm_button")
-                ) {
-                    Text("مراجعة مشاريعي 🚀")
-                }
-            },
-            dismissButton = {
-                TextButton(
-                    onClick = {
-                        com.example.util.NotificationHelper.sendDailyGoalsNotification(context)
-                        showReminderDialog = false
-                    },
-                    modifier = Modifier.testTag("reminder_send_notif_button")
-                ) {
-                    Text("إرسال إشعار خارجي 🔔")
-                }
+            onSendNotification = {
+                com.example.util.NotificationHelper.sendDailyGoalsNotification(context)
+                showReminderDialog = false
             }
         )
     }
@@ -137,7 +86,8 @@ fun MubtakirApp(
 
     // Force RTL layout direction for Arabic visual flow
     CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
-        if (isTablet) {
+        Box(modifier = Modifier.fillMaxSize()) {
+            if (isTablet) {
             // High fidelity Tablet / iPad layout: Side Navigation Rail + Centered bounds content
             Row(modifier = Modifier.fillMaxSize()) {
                 NavigationRail(
@@ -470,5 +420,8 @@ fun MubtakirApp(
                 }
             }
         }
+        
+        ConfettiCelebration(trigger = confettiTrigger)
     }
+}
 }

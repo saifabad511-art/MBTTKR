@@ -90,6 +90,14 @@ class MubtakirViewModel(application: Application) : AndroidViewModel(application
     private val _isDarkMode = MutableStateFlow<Boolean?>(null)
     val isDarkMode = _isDarkMode.asStateFlow()
 
+    // --- Confetti & Celebration State ---
+    private val _confettiTrigger = MutableStateFlow(0)
+    val confettiTrigger = _confettiTrigger.asStateFlow()
+
+    fun triggerConfetti() {
+        _confettiTrigger.value = _confettiTrigger.value + 1
+    }
+
     // --- Chat State ---
     private val _chatMessages = MutableStateFlow<List<ChatMessage>>(listOf(
         ChatMessage(
@@ -249,6 +257,7 @@ class MubtakirViewModel(application: Application) : AndroidViewModel(application
                 imageUrl = imagePath
             )
             repository.insertProject(newProject)
+            triggerConfetti()
             _generatedIdea.value = null // Clear generator state
             _generatedImageB64.value = null // Clear image state
             saveGeneratedIdeaToPrefs(null)
@@ -480,6 +489,7 @@ class MubtakirViewModel(application: Application) : AndroidViewModel(application
                 completedAt = System.currentTimeMillis()
             )
             repository.insertProject(newProject)
+            triggerConfetti()
             triggerCloudSync()
         }
     }
@@ -514,6 +524,18 @@ class MubtakirViewModel(application: Application) : AndroidViewModel(application
                 completedAt = if (calculatedProgress >= 100) System.currentTimeMillis() else null
             )
             repository.updateProject(updated)
+            if (isChecked) {
+                triggerConfetti()
+                if (calculatedProgress >= 100 && project.progress < 100) {
+                    // Celebrate project completion!
+                    viewModelScope.launch {
+                        delay(600)
+                        triggerConfetti()
+                        delay(600)
+                        triggerConfetti()
+                    }
+                }
+            }
             triggerCloudSync()
         }
     }
@@ -555,6 +577,7 @@ class MubtakirViewModel(application: Application) : AndroidViewModel(application
                 completedSteps = ""
             )
             repository.insertProject(newProject)
+            triggerConfetti()
             triggerCloudSync()
         }
     }
@@ -1011,7 +1034,13 @@ class MubtakirViewModel(application: Application) : AndroidViewModel(application
     }
 
     // --- AI Generator Actions ---
-    fun generateIdea(type: String) {
+    fun generateIdea(
+        type: String,
+        userIdeaInput: String? = null,
+        difficulty: Int = 3,
+        platform: String = "تطبيق موبايل",
+        preferredTech: String = "Kotlin & Jetpack Compose"
+    ) {
         _isGenerating.value = true
         _generatedIdea.value = null
         saveGeneratedIdeaToPrefs(null)
@@ -1022,11 +1051,11 @@ class MubtakirViewModel(application: Application) : AndroidViewModel(application
                 val apiKey = BuildConfig.GEMINI_API_KEY
                 if (apiKey.isEmpty() || apiKey == "MY_GEMINI_API_KEY") {
                     // Simulate high quality fallback if API key is not configured so user doesn't get a dead screen, but tell them how to setup
-                    simulateBeautifulFallback(type)
+                    simulateBeautifulFallback(type, userIdeaInput, difficulty, platform, preferredTech)
                     return@launch
                 }
 
-                val prompt = buildPrompt(type)
+                val prompt = buildPrompt(type, userIdeaInput, difficulty, platform, preferredTech)
                 val request = GenerateContentRequest(
                     contents = listOf(
                         ContentRequest(
@@ -1063,7 +1092,7 @@ class MubtakirViewModel(application: Application) : AndroidViewModel(application
                 Log.e("Mubtakir", "API error during generateIdea", e)
                 _errorMessage.value = "حدث خطأ أثناء الاتصال بالذكاء الاصطناعي: ${e.localizedMessage ?: "تأكد من اتصالك بالإنترنت"}"
                 // For a smooth demo even during minor connection drops or config delays, let's provide fallback simulation
-                simulateBeautifulFallback(type)
+                simulateBeautifulFallback(type, userIdeaInput, difficulty, platform, preferredTech)
             } finally {
                 _isGenerating.value = false
             }
@@ -1096,7 +1125,13 @@ class MubtakirViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
-    private fun buildPrompt(type: String): String {
+    private fun buildPrompt(
+        type: String,
+        userIdeaInput: String?,
+        difficulty: Int,
+        platform: String,
+        preferredTech: String
+    ): String {
         val interestList = _interests.value.joinToString(", ")
         val skillList = _skills.value.joinToString(", ")
 
@@ -1108,6 +1143,43 @@ class MubtakirViewModel(application: Application) : AndroidViewModel(application
             else -> "فكرة لمشروع مميز"
         }
 
+        if (!userIdeaInput.isNullOrBlank()) {
+            return """
+                أنت مهندس برمجيات محترف، ومصمم واجهات مستخدم بارع، وخبير في هندسة الأوامر (Prompt Engineering).
+                قام المستخدم بإدخال فكرة أولية أو هدف لمشروع، ويريد منك تخصيص الفكرة، وتوليد "حل كامل للمشكلة" بالإضافة إلى "برومبت هندسة أوامر فائق الجودة والفعالية" يمكن للمستخدم نسخه واستخدامه مع أي نموذج لغوي كبير (LLM) لتوليد كود هذا المشروع أو تصميمه بالكامل.
+
+                بيانات مدخلات المستخدم وتفضيلاته للتخصيص:
+                - الفكرة الأولية للمستخدم: "$userIdeaInput"
+                - نوع المشروع المطلوب: $requestTypeLabel
+                - مستوى الصعوبة المستهدف: $difficulty من 5
+                - المنصة المستهدفة: $platform
+                - التقنية أو لغة البرمجة المفضلة: $preferredTech
+                - اهتمامات المستخدم الشخصية المساعدة: $interestList
+                - مهارات المستخدم الحالية المساعدة: $skillList
+
+                مهمتك هي صياغة رد بصيغة JSON متوافقة ومكتوبة باللغة العربية الفصحى الإبداعية والواضحة، بالبنية التالية تماماً:
+                {
+                  "title": "اسم ذكي وجذاب ومبتكر للمشروع يناسب الفكرة والمنصة المحددة",
+                  "description": "وصف تفصيلي احترافي للحل البرمجي للمشكلة التي تعالجها فكرة المستخدم، والفوائد التي يقدمها بذكاء وسلاسة",
+                  "technologies": "التقنيات والأدوات المقترحة (اجعلها تشمل التقنية المفضلة التي حددها المستخدم $preferredTech وتقنيات مساعدة كقاعدة بيانات أو مكتبات تصميم) مفصولة بفواصل عادية",
+                  "difficulty": $difficulty,
+                  "estimatedDuration": "المدة الزمنية المتوقعة لإنجاز المشروع (مثال: 5 أيام، أسبوع، إلخ)",
+                  "steps": [
+                    "الخطوة 1: وصف لخطوة التخطيط والتحليل للحل المبتكر",
+                    "الخطوة 2: وصف لخطوة تصميم الواجهات وتجربة المستخدم",
+                    "الخطوة 3: وصف لخطوة التطوير البرمجي وكتابة الأكواد الأساسية للحل",
+                    "الخطوة 4: وصف لخطوة ربط البيانات والذكاء الاصطناعي أو الاختبار والتحسين",
+                    "الخطوة 5: وصف لخطوة النشر والتشغيل الفعلي للمشروع"
+                  ],
+                  "optimizedPrompt": "صغ هنا برومبت (Prompt) كامل، واحترافي، وقوي جداً مكتوب باللغة العربية والإنجليزية وموجه للذكاء الاصطناعي لإنشاء هذا التطبيق كاملاً. يجب أن يبدأ البرومبت بتحديد دور الذكاء الاصطناعي (مثلاً: Act as an expert Android/Web developer...)، ثم تفصيل متطلبات فكرة المستخدم ($userIdeaInput)، وتحديد التقنيات ($preferredTech)، والخطوات، مع توجيهه لتوليد كود نظيف وخالي من الأخطاء وواجهات مستخدم مذهلة بأسلوب عصري. اجعل هذا البرومبت شاملاً ومفصلاً تقنياً وجاهزاً للنسخ والاستخدام الفوري للحصول على كود المشروع كاملاً."
+                }
+
+                ملاحظة هامة جداً:
+                - يجب أن تكون المخرجات عبارة عن JSON صالح للتفسير فقط. لا تضع أي تعليقات أو نصوص قبل أو بعد الـ JSON. لا تضع وسم ```json في البداية أو النهاية داخل نص الرد، فقط كود الـ JSON مباشرة.
+                - استخدم لغة عربية رصينة ومحفزة في الوصف والخطوات، واجعل البرومبت المولد (optimizedPrompt) شاملاً ومقنعاً وعميقاً تقنياً ليعطي المستخدم أفضل نتيجة عند نسخه.
+            """.trimIndent()
+        }
+
         return """
             أنت خبير ومساعد ابتكار وتصميم ذكي بالذكاء الاصطناعي ومطور برمجيات مخضرم. 
             مهمتك هي اقتراح فكرة إبداعية باللغة العربية مخصصة بالكامل للمستخدم بناءً على مهاراته التقنية واهتماماته الشخصية.
@@ -1117,7 +1189,7 @@ class MubtakirViewModel(application: Application) : AndroidViewModel(application
             - مهاراته التقنية الحالية: $skillList
             - نوع الابتكار المطلوب: $requestTypeLabel
             
-            يجب أن ترد وتصيغ الإجابة حصراً بصيغة JSON صالحة للتفسير (لا تضع أي نصوص قبل أو بعد الـ JSON، لا تضع علامات أو هوامش إضافية، واجعل بنية الـ JSON مطابقة تماماً للمواصفات التالية):
+            يجب أن ترد وتصيغ الإجابة حصراً بصيغة JSON صالحة للتفسير (لا تضع أي نصوص قبل أو بعد الـ JSON، واجعل بنية الـ JSON مطابقة تماماً للمواصفات التالية):
             
             {
               "title": "اسم الفكرة المبتكرة والذكية",
@@ -1130,18 +1202,51 @@ class MubtakirViewModel(application: Application) : AndroidViewModel(application
                 "الخطوة الثانية لتطوير منطق العمل البرمجي وتطبيق الميزات الأساسية",
                 "الخطوة الثالثة لربط البيانات واختبار العمل محلياً",
                 "الخطوة الرابعة لتحسين الجودة والنشر أو عرض النموذج"
-              ]
+              ],
+              "optimizedPrompt": "اكتب برومبت مهندس للذكاء الاصطناعي لتطوير هذا المشروع المقترح بالتفصيل، يبدأ بـ Act as an expert..."
             }
             
             اجعل الفكرة شيقة ومناسبة جداً ومفيدة وملهمة. استخدم اللغة العربية الفصحى الأنيقة والجذابة.
         """.trimIndent()
     }
 
-    private suspend fun simulateBeautifulFallback(type: String) {
+    private suspend fun simulateBeautifulFallback(
+        type: String,
+        userIdeaInput: String?,
+        difficulty: Int,
+        platform: String,
+        preferredTech: String
+    ) {
         // High quality offline fallback ideas if API key is not configured or fails, ensuring beautiful prototype experience!
         _isGenerating.value = true
         delay(2000) // Simulated AI thinking time for elegant UX
         _isGenerating.value = false
+
+        if (!userIdeaInput.isNullOrBlank()) {
+            val fallbackIdea = GeneratedIdeaJson(
+                title = "نسخة تجريبية: $userIdeaInput المبتكر",
+                description = "هذا حل ومخطط أولي مقترح لفكرتك ($userIdeaInput) تم توليده محلياً بشكل سريع. لحصولك على كامل التحليل المخصص والبرومبت المتقدم من العقل الاصطناعي المباشر، يرجى تهيئة مفتاح الـ API الخاص بـ Gemini في الإعدادات.",
+                technologies = "$preferredTech, $platform Stack",
+                difficulty = difficulty,
+                estimatedDuration = "3 أيام",
+                steps = listOf(
+                    "التخطيط وهندسة معمارية الحل لـ $userIdeaInput",
+                    "رسم المخططات وتصميم واجهات المستخدم المتوافقة مع $platform",
+                    "كتابة الأكواد الأساسية بلغة $preferredTech والتحقق من سير العمليات",
+                    "تطبيق سيناريوهات اختبار مخصصة ومعالجة الأخطاء المحتملة",
+                    "النشر الأولي وتصدير كود المشروع للاستخدام"
+                ),
+                optimizedPrompt = """
+                    Act as an expert software architect and developer. I want to build a "$userIdeaInput" targeting "$platform" using "$preferredTech".
+                    Please design a clean architecture solution following modern design guidelines.
+                    Provide the step-by-step file structure and detailed code implementation for the main modules.
+                    Ensure maximum testability, responsiveness, and performance.
+                """.trimIndent()
+            )
+            _generatedIdea.value = fallbackIdea
+            saveGeneratedIdeaToPrefs(fallbackIdea)
+            return
+        }
 
         val randomId = (0..2).random()
         val fallbackIdea = when (type) {
@@ -1152,7 +1257,8 @@ class MubtakirViewModel(application: Application) : AndroidViewModel(application
                     technologies = "Jetpack Compose, Room DB, Vico Charts",
                     difficulty = 2,
                     estimatedDuration = "يوم واحد",
-                    steps = listOf("تصميم الواجهة الرئيسية بجدول بسيط لإدخال البيانات اليومية", "تجهيز جدول في قاعدة البيانات المحلية لحفظ القياسات", "رسم تخطيط بياني ملون يمثل تغير مستويات التركيز", "إتاحة زر تصدير التقرير اليومي بنص منسق")
+                    steps = listOf("تصميم الواجهة الرئيسية بجدول بسيط لإدخال البيانات اليومية", "تجهيز جدول في قاعدة البيانات المحلية لحفظ القياسات", "رسم تخطيط بياني ملون يمثل تغير مستويات التركيز", "إتاحة زر تصدير التقرير اليومي بنص منسق"),
+                    optimizedPrompt = "Act as an expert developer. Create a personal energy tracker app in Jetpack Compose, capturing user focus, sleep patterns, and generating beautiful progress charts."
                 ),
                 GeneratedIdeaJson(
                     title = "مخطط تحدي 21 يوماً لعادة إيجابية",
@@ -1160,7 +1266,8 @@ class MubtakirViewModel(application: Application) : AndroidViewModel(application
                     technologies = "Compose, Preference DataStore, Material3",
                     difficulty = 1,
                     estimatedDuration = "يوم واحد",
-                    steps = listOf("إنشاء واجهة لعرض 21 دائرة تمثل أيام التحدي", "برمجة خاصية الضغط لتأكيد الإنجاز اليومي بنجاح", "إضافة أصوات واهتزازات خفيفة تفاعلية عند إتمام يوم", "تخزين البيانات لضمان عدم ضياع أيام التحدي")
+                    steps = listOf("إنشاء واجهة لعرض 21 دائرة تمثل أيام التحدي", "برمجة خاصية الضغط لتأكيد الإنجاز اليومي بنجاح", "إضافة أصوات واهتزازات خفيفة تفاعلية عند إتمام يوم", "تخزين البيانات لضمان عدم ضياع أيام التحدي"),
+                    optimizedPrompt = "Act as an expert Android developer. Develop a 21-day habit challenge app using Jetpack Compose and DataStore for persistent tracker states."
                 ),
                 GeneratedIdeaJson(
                     title = "محفز الذكاء الصباحي التقني",
@@ -1168,7 +1275,8 @@ class MubtakirViewModel(application: Application) : AndroidViewModel(application
                     technologies = "Kotlin, Coroutines, SharedPreferences",
                     difficulty = 2,
                     estimatedDuration = "يوم واحد",
-                    steps = listOf("تصميم شاشة ترحيبية تعرض بطاقة لغز اليوم مع مؤقت مدمج", "تجهيز بنك أسئلة صغير لمهارات Kotlin والـ UX", "برمجة التحقق من الإجابة بشكل فوري وجميل وبصري", "تفعيل تذكير دوري ليعمل في وقت محدد صباحاً")
+                    steps = listOf("تصميم شاشة ترحيبية تعرض بطاقة لغز اليوم مع مؤقت مدمج", "تجهيز بنك أسئلة صغير لمهارات Kotlin والـ UX", "برمجة التحقق من الإجابة بشكل فوري وجميل وبصري", "تفعيل تذكير دوري ليعمل في وقت محدد صباحاً"),
+                    optimizedPrompt = "Act as an expert computer science tutor. Build a morning logic quiz app that serves user micro-challenges dynamically and validates instantly."
                 )
             )[randomId]
 
@@ -1179,7 +1287,8 @@ class MubtakirViewModel(application: Application) : AndroidViewModel(application
                     technologies = "Arduino, Kotlin, Firebase, Ktor Client",
                     difficulty = 4,
                     estimatedDuration = "5 أيام",
-                    steps = listOf("تصميم ومحاكاة الدائرة الكهربائية للمستشعرات والمتحكم", "بناء التطبيق الذي يستقبل القراءات عبر الـ Bluetooth أو الـ Wi-Fi", "إعداد قاعدة بيانات لتسجيل تواريخ السقي وصحة النبات", "تضمين نموذج بسيط يتنبأ بموعد الري القادم بناءً على درجة الحرارة والرطوبة")
+                    steps = listOf("تصميم ومحاكاة الدائرة الكهربائية للمستشعرات والمتحكم", "بناء التطبيق الذي يستقبل القراءات عبر الـ Bluetooth أو الـ Wi-Fi", "إعداد قاعدة بيانات لتسجيل تواريخ السقي وصحة النبات", "تضمين نموذج بسيط يتنبأ بموعد الري القادم بناءً على درجة الحرارة والرطوبة"),
+                    optimizedPrompt = "Act as an IoT engineer and developer. Build an IoT smart plant watering system using Arduino connected to a Kotlin client app via Bluetooth."
                 ),
                 GeneratedIdeaJson(
                     title = "نظام المساعد الصوتي لتسجيل الأفكار السائبة",
@@ -1187,7 +1296,8 @@ class MubtakirViewModel(application: Application) : AndroidViewModel(application
                     technologies = "Speech-to-Text API, Gemini API, Room Database",
                     difficulty = 5,
                     estimatedDuration = "أسبوع واحد",
-                    steps = listOf("تفعيل ميزة التسجيل الصوتي الحي بأعلى دقة ممكنة", "إرسال الصوت لمحرك التحويل واستقبال النص العربي المكتوب", "استخدام الذكاء الاصطناعي لتصنيف الأفكار وفرز التقنيات المطلوبة لكل فكرة", "تخزين الأفكار في مستودع آمن ومبوب مع خيار البحث الذكي")
+                    steps = listOf("تفعيل ميزة التسجيل الصوتي الحي بأعلى دقة ممكنة", "إرسال الصوت لمحرك التحويل واستقبال النص العربي المكتوب", "استخدام الذكاء الاصطناعي لتصنيف الأفكار وفرز التقنيات المطلوبة لكل فكرة", "تخزين الأفكار في مستودع آمن ومبوب مع خيار البحث الذكي"),
+                    optimizedPrompt = "Act as an AI developer. Implement an advanced voice memo capturing system that uses Speech-to-Text and Gemini API to parse and categorize projects."
                 ),
                 GeneratedIdeaJson(
                     title = "خزانة المفاتيح الذكية بتأكيد البصمة والرمز",
@@ -1195,7 +1305,8 @@ class MubtakirViewModel(application: Application) : AndroidViewModel(application
                     technologies = "ESP32 microchip, Bluetooth BLE, Kotlin, Cryptography",
                     difficulty = 4,
                     estimatedDuration = "4 أيام",
-                    steps = listOf("تثبيت قطعة بلوتوث في المتحكم وربطها بقفل مغناطيسي", "برمجة خوارزمية التشفير لتوليد مفاتيح وصول ديناميكية وصالحة لمرة واحدة", "تصميم واجهة تحكم بالهاتف لرصد سجلات فتح الصندوق بدقة", "إضافة ميزة إطلاق إنذار صوتي فوري في حال المحاولة الخاطئة المتكررة")
+                    steps = listOf("تثبيت قطعة بلوتوث في المتحكم وربطها بقفل مغناطيسي", "برمجة خوارزمية التشفير لتوليد مفاتيح وصول ديناميكية وصالحة لمرة واحدة", "تصميم واجهة تحكم بالهاتف لرصد سجلات فتح الصندوق بدقة", "إضافة ميزة إطلاق إنذار صوتي فوري في حال المحاولة الخاطئة المتكررة"),
+                    optimizedPrompt = "Act as a secure IoT systems designer. Create an Android BLE application communicating securely with an ESP32 microchip to operate a locked safe."
                 )
             )[randomId]
 
@@ -1206,7 +1317,8 @@ class MubtakirViewModel(application: Application) : AndroidViewModel(application
                     technologies = "Figma, Jetpack Compose, Material Design 3",
                     difficulty = 3,
                     estimatedDuration = "3 أيام",
-                    steps = listOf("تحديد الهوية البصرية ولوحة الألوان المستوحاة من الطبيعة والتقنية المضيئة", "تصميم شاشات لوحة التحكم التفاعلية ومؤشرات الحرارة والنمو في فيجما", "بناء نموذج الواجهة التفاعلية بالـ Compose مع تفعيل حركات انتقال انسيابية", "تطبيق دعم الوضعين الداكن والمضيء مع تخصيص المكونات بجمال فائق")
+                    steps = listOf("تحديد الهوية البصرية ولوحة الألوان المستوحاة من الطبيعة والتقنية المضيئة", "تصميم شاشات لوحة التحكم التفاعلية ومؤشرات الحرارة والنمو في فيجما", "بناء نموذج الواجهة التفاعلية بالـ Compose مع تفعيل حركات انتقال انسيابية", "تطبيق دعم الوضعين الداكن والمضيء مع تخصيص المكونات بجمال فائق"),
+                    optimizedPrompt = "Act as a futuristic UI/UX designer. Create an outstanding Material 3 dashboard interface for a vertical farming system with glassmorphic cards."
                 ),
                 GeneratedIdeaJson(
                     title = "واجهة نظام قيادة الطائرات بدون طيار الذاتية",
@@ -1214,7 +1326,8 @@ class MubtakirViewModel(application: Application) : AndroidViewModel(application
                     technologies = "Figma, Canvas Draw, Jetpack Compose",
                     difficulty = 3,
                     estimatedDuration = "يومين",
-                    steps = listOf("تخطيط الهيكل البصري وعناصر واجهة القيادة التكتيكية (HUD)", "بناء بوصلة ومؤشر ميلان ديناميكي مرسوم يدوياً باستخدام Canvas في Compose", "تطبيق خرائط محاكاة تفاعلية لعرض خط السير ومواقع العقبات بدقة", "تصميم تحذيرات بصرية تومض باللون الأحمر والبرتقالي في حالات الطوارئ")
+                    steps = listOf("تخطيط الهيكل البصري وعناصر واجهة القيادة التكتيكية (HUD)", "بناء بوصلة ومؤشر ميلان ديناميكي مرسوم يدوياً باستخدام Canvas في Compose", "تطبيق خرائط محاكاة تفاعلية لعرض خط السير ومواقع العقبات بدقة", "تصميم تحذيرات بصرية تومض باللون الأحمر والبرتقالي في حالات الطوارئ"),
+                    optimizedPrompt = "Act as a specialized interface engineer. Draw a dynamic, animated aircraft HUD compass using Jetpack Compose Canvas APIs."
                 ),
                 GeneratedIdeaJson(
                     title = "تطبيق حجز تذاكر السفر بين الكواكب",
@@ -1222,7 +1335,8 @@ class MubtakirViewModel(application: Application) : AndroidViewModel(application
                     technologies = "Figma, Glassmorphism CSS, Compose Custom Draw",
                     difficulty = 4,
                     estimatedDuration = "3 أيام",
-                    steps = listOf("جمع أصول الصور والمؤثرات البصرية الكونية المناسبة للواجهة المستقبلية", "رسم بطاقات شفافة زجاجية متموجة تعلو خلفية فضائية نابضة بالحياة", "تصميم واجهة اختيار مقاعد المركبة الفضائية بأسلوب ثلاثي الأبعاد جذاب", "إعداد حركات انتقال متموجة وسلسة تحاكي انعدام الجاذبية عند الضغط")
+                    steps = listOf("جمع أصول الصور والمؤثرات البصرية الكونية المناسبة للواجهة المستقبلية", "رسم بطاقات شفافة زجاجية متموجة تعلو خلفية فضائية نابضة بالحياة", "تصميم واجهة اختيار مقاعد المركبة الفضائية بأسلوب ثلاثي الأبعاد جذاب", "إعداد حركات انتقال متموجة وسلسة تحاكي انعدام الجاذبية عند الضغط"),
+                    optimizedPrompt = "Act as a creative UI designer. Design an outstanding space flight reservation platform featuring Glassmorphism, neon highlights, and cosmic vectors."
                 )
             )[randomId]
 
@@ -1233,7 +1347,8 @@ class MubtakirViewModel(application: Application) : AndroidViewModel(application
                     technologies = "Gemini Prompt, LLM Context, Compose M3",
                     difficulty = 3,
                     estimatedDuration = "يوم واحد",
-                    steps = listOf("تحديد المشهد وحالة الواجهة المطلوبة (Loading, Success, Error)", "كتابة سياق هندسة الأوامر وتعيين دور الخبير للنموذج", "صياغة قيود التصميم والتباعد والوصول واستخدام الألوان المناسبة للثيم", "تجربة البرومبت وضبط الاستجابة بهيكل JSON محدد")
+                    steps = listOf("تحديد المشهد وحالة الواجهة المطلوبة (Loading, Success, Error)", "كتابة سياق هندسة الأوامر وتعيين دور الخبير للنموذج", "صياغة قيود التصميم والتباعد والوصول واستخدام الألوان المناسبة للثيم", "تجربة البرومبت وضبط الاستجابة بهيكل JSON محدد"),
+                    optimizedPrompt = "Act as a prompt engineer. Design a system instruction template that forces a coding model to output compile-ready Material 3 Compose views."
                 ),
                 GeneratedIdeaJson(
                     title = "برومبت مراجعة الأكواد واكتشاف الأخطاء الأمنية",
@@ -1241,7 +1356,8 @@ class MubtakirViewModel(application: Application) : AndroidViewModel(application
                     technologies = "Prompt Engineering, Secure Coding, Quality Assurance",
                     difficulty = 4,
                     estimatedDuration = "يوم واحد",
-                    steps = listOf("صياغة دور المراجع التقني الأمني الصارم للنموذج", "تحديد معايير الفحص (أداء، أمان، استهلاك الذاكرة، توثيق)", "تضمين أمثلة لمدخلات ومخرجات مثالية (Few-shot prompting)", "اختبار الفعالية مع أكواد بها ثغرات شائعة وملاحظة الدقة")
+                    steps = listOf("صياغة دور المراجع التقني الأمني الصارم للنموذج", "تحديد معايير الفحص (أداء، أمان، استهلاك الذاكرة، توثيق)", "تضمين أمثلة لمدخلات ومخرجات مثالية (Few-shot prompting)", "اختبار الفعالية مع أكواد بها ثغرات شائعة وملاحظة الدقة"),
+                    optimizedPrompt = "Act as a senior security researcher. Write a detailed code-review prompt to analyze Kotlin files for vulnerabilities and resource leaks."
                 ),
                 GeneratedIdeaJson(
                     title = "برومبت ابتكار أفكار تجارية للمشاريع الناشئة",
@@ -1249,7 +1365,8 @@ class MubtakirViewModel(application: Application) : AndroidViewModel(application
                     technologies = "Prompt Design, Business Analytics, Product Market Fit",
                     difficulty = 3,
                     estimatedDuration = "يوم واحد",
-                    steps = listOf("تحديد هيكل نموذج العمل المستهدف (SaaS, B2B, B2C)", "بناء متغيرات لتحديد الجمهور والمشكلة الأساسية والحل البرمجي", "صياغة قيود المخرجات لتشمل الميزة التنافسية وتوقع العقبات", "تحسين الصياغة للحصول على تفاصيل مالية وتقنية قابلة للتنفيذ")
+                    steps = listOf("تحديد هيكل نموذج العمل المستهدف (SaaS, B2B, B2C)", "بناء متغيرات لتحديد الجمهور والمشكلة الأساسية والحل البرمجي", "صياغة قيود المخرجات لتشمل الميزة التنافسية وتوقع العقبات", "تحسين الصياغة للحصول على تفاصيل مالية وتقنية قابلة للتنفيذ"),
+                    optimizedPrompt = "Act as a startup business incubator specialist. Create a detailed business ideation prompt to help software creators explore validated SaaS markets."
                 )
             )[randomId]
 
@@ -1259,7 +1376,8 @@ class MubtakirViewModel(application: Application) : AndroidViewModel(application
                 technologies = "Kotlin, Room, Gemini API",
                 difficulty = 3,
                 estimatedDuration = "3 أيام",
-                steps = listOf("تصميم الواجهة", "تطوير منطق العمل", "تأكيد العمل بنجاح")
+                steps = listOf("تصميم الواجهة", "تطوير منطق العمل", "تأكيد العمل بنجاح"),
+                optimizedPrompt = "Act as an expert developer. Design a personal local-first innovation log repository with SQLite/Room backend and beautiful statistics screens."
             )
         }
 

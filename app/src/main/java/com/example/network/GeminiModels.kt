@@ -70,5 +70,6 @@ data class GeneratedIdeaJson(
     @Json(name = "technologies") val technologies: String, // Comma separated list of tech
     @Json(name = "difficulty") val difficulty: Int, // 1 to 5
     @Json(name = "estimatedDuration") val estimatedDuration: String, // e.g. "5 أيام"
-    @Json(name = "steps") val steps: List<String> // Step-by-step instructions
+    @Json(name = "steps") val steps: List<String>, // Step-by-step instructions
+    @Json(name = "optimizedPrompt") val optimizedPrompt: String? = null // AI prompt designed for this project
 )

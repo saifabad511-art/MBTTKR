@@ -1,6 +1,8 @@
 package com.example.ui.screens
 
 import androidx.compose.animation.*
+import androidx.compose.animation.core.*
+import androidx.compose.ui.draw.scale
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -803,14 +805,31 @@ fun ActiveProjectCard(
 
                     stepsList.forEachIndexed { index, step ->
                         val isChecked = completedIndices.contains(index.toString())
+                        
+                        // Motivating scale, color, and alpha animations on checking steps
+                        val scale by animateFloatAsState(
+                            targetValue = if (isChecked) 0.97f else 1f,
+                            animationSpec = spring(
+                                dampingRatio = Spring.DampingRatioMediumBouncy,
+                                stiffness = Spring.StiffnessLow
+                            )
+                        )
+                        val opacity by animateFloatAsState(
+                            targetValue = if (isChecked) 0.55f else 1f,
+                            animationSpec = tween(durationMillis = 250)
+                        )
+                        val backgroundColor by animateColorAsState(
+                            targetValue = if (isChecked) MaterialTheme.colorScheme.primary.copy(alpha = 0.08f)
+                            else Color.Transparent,
+                            animationSpec = tween(durationMillis = 250)
+                        )
+
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
+                                .scale(scale)
                                 .clip(RoundedCornerShape(10.dp))
-                                .background(
-                                    if (isChecked) MaterialTheme.colorScheme.primary.copy(alpha = 0.05f)
-                                    else Color.Transparent
-                                )
+                                .background(backgroundColor)
                                 .clickable { onStepToggle(index, !isChecked) }
                                 .padding(horizontal = 6.dp, vertical = 4.dp),
                             verticalAlignment = Alignment.CenterVertically,
@@ -819,7 +838,9 @@ fun ActiveProjectCard(
                             Checkbox(
                                 checked = isChecked,
                                 onCheckedChange = { onStepToggle(index, it) },
-                                modifier = Modifier.testTag("step_checkbox_${project.id}_$index")
+                                modifier = Modifier
+                                    .testTag("step_checkbox_${project.id}_$index")
+                                    .scale(if (isChecked) 1.05f else 1.0f)
                             )
 
                             Text(
@@ -827,8 +848,11 @@ fun ActiveProjectCard(
                                 fontSize = 12.sp,
                                 color = if (isChecked) MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
                                 else MaterialTheme.colorScheme.onSurface,
-                                modifier = Modifier.weight(1f),
-                                lineHeight = 16.sp
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .scale(if (isChecked) 0.99f else 1f),
+                                lineHeight = 16.sp,
+                                textDecoration = if (isChecked) androidx.compose.ui.text.style.TextDecoration.LineThrough else null
                             )
                         }
                     }

@@ -29,6 +29,10 @@ import androidx.compose.ui.unit.sp
 import com.example.ui.MubtakirViewModel
 import coil.compose.AsyncImage
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.AnnotatedString
+import android.widget.Toast
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -57,6 +61,13 @@ fun GeneratorScreen(
 
     var selectedType by remember { mutableStateOf("DO") } // "DO", "INVENT", "DESIGN"
     var ratedDifficulty by remember { mutableStateOf(3) } // Default user-selected rating (1-5)
+
+    // Idea Customizer states
+    var userIdeaInput by remember { mutableStateOf("") }
+    var selectedDifficulty by remember { mutableStateOf(3) }
+    var selectedPlatform by remember { mutableStateOf("تطبيق موبايل (Android/iOS)") }
+    var selectedTech by remember { mutableStateOf("Kotlin & Jetpack Compose") }
+    var showCustomizerOptions by remember { mutableStateOf(false) }
 
     // Reset difficulty when a new idea is generated
     LaunchedEffect(generatedIdea) {
@@ -144,6 +155,178 @@ fun GeneratorScreen(
             }
         }
 
+        // --- SMART INNOVATION CUSTOMIZER ---
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(20.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.15f)
+            ),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.2f))
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Settings,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Text(
+                        text = "نظام تخصيص الأفكار والبرومبت الذكي 🛠️",
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+
+                // Core Idea Text Input
+                OutlinedTextField(
+                    value = userIdeaInput,
+                    onValueChange = { userIdeaInput = it },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("user_idea_input"),
+                    label = { Text("اكتب فكرتك الأساسية أو مشروعك المقترح") },
+                    placeholder = { Text("مثال: تطبيق ذكي لتتبع الأدوية لكبار السن") },
+                    shape = RoundedCornerShape(12.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = MaterialTheme.colorScheme.primary,
+                        unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f)
+                    ),
+                    maxLines = 3,
+                    supportingText = {
+                        Text(
+                            text = if (userIdeaInput.isBlank()) "اتركها فارغة ليقترح عليك الذكاء الاصطناعي فكرة عشوائية مخصصة لملفك" else "سيقوم الذكاء الاصطناعي بتحليل الفكرة وتصميم برومبت وخطوات حل متكاملة!",
+                            fontSize = 10.sp,
+                            color = if (userIdeaInput.isBlank()) MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f) else MaterialTheme.colorScheme.primary
+                        )
+                    }
+                )
+
+                // Expandable Advanced Options header
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { showCustomizerOptions = !showCustomizerOptions }
+                        .padding(vertical = 4.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "خيارات التخصيص المتقدمة",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.secondary
+                    )
+                    Icon(
+                        imageVector = if (showCustomizerOptions) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.secondary,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+
+                AnimatedVisibility(
+                    visible = showCustomizerOptions,
+                    enter = fadeIn() + expandVertically(),
+                    exit = fadeOut() + shrinkVertically()
+                ) {
+                    Column(
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                        modifier = Modifier.padding(top = 4.dp)
+                    ) {
+                        // Difficulty selection chips
+                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text(
+                                text = "مستوى الصعوبة المستهدف:",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                listOf(1 to "سهل", 3 to "متوسط", 5 to "متقدم").forEach { (level, label) ->
+                                    val isSelected = selectedDifficulty == level
+                                    FilterChip(
+                                        selected = isSelected,
+                                        onClick = { selectedDifficulty = level },
+                                        label = { Text(label, fontSize = 11.sp) },
+                                        colors = FilterChipDefaults.filterChipColors(
+                                            selectedContainerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
+                                            selectedLabelColor = MaterialTheme.colorScheme.primary
+                                        )
+                                    )
+                                }
+                            }
+                        }
+
+                        // Target platform options
+                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text(
+                                text = "المنصة المستهدفة:",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                listOf("تطبيق موبايل", "موقع ويب", "أنظمة IoT/إلكترونيات", "أداة ذكاء اصطناعي").forEach { platform ->
+                                    val isSelected = selectedPlatform == platform
+                                    FilterChip(
+                                        selected = isSelected,
+                                        onClick = { selectedPlatform = platform },
+                                        label = { Text(platform, fontSize = 10.sp) },
+                                        colors = FilterChipDefaults.filterChipColors(
+                                            selectedContainerColor = MaterialTheme.colorScheme.secondary.copy(alpha = 0.15f),
+                                            selectedLabelColor = MaterialTheme.colorScheme.secondary
+                                        )
+                                    )
+                                }
+                            }
+                        }
+
+                        // Preferred tech options
+                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text(
+                                text = "التقنية أو لغة البرمجة المفضلة:",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                listOf("Kotlin & Compose", "Flutter", "React / Next.js", "Python").forEach { tech ->
+                                    val isSelected = selectedTech == tech
+                                    FilterChip(
+                                        selected = isSelected,
+                                        onClick = { selectedTech = tech },
+                                        label = { Text(tech, fontSize = 10.sp) },
+                                        colors = FilterChipDefaults.filterChipColors(
+                                            selectedContainerColor = MaterialTheme.colorScheme.tertiary.copy(alpha = 0.15f),
+                                            selectedLabelColor = MaterialTheme.colorScheme.tertiary
+                                        )
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         // --- QUICK PROFILE WARNING (IF EMPTY) ---
         if (interests.isEmpty() && skills.isEmpty()) {
             Card(
@@ -175,7 +358,15 @@ fun GeneratorScreen(
 
         // --- ACTION TRIGGER BUTTON ---
         Button(
-            onClick = { viewModel.generateIdea(selectedType) },
+            onClick = {
+                viewModel.generateIdea(
+                    type = selectedType,
+                    userIdeaInput = userIdeaInput.ifBlank { null },
+                    difficulty = selectedDifficulty,
+                    platform = selectedPlatform,
+                    preferredTech = selectedTech
+                )
+            },
             enabled = !isGenerating,
             modifier = Modifier
                 .fillMaxWidth()
@@ -197,8 +388,8 @@ fun GeneratorScreen(
                         color = MaterialTheme.colorScheme.onPrimary
                     )
                     Text(
-                        text = "جاري استشارة العقل الاصطناعي...",
-                        fontSize = 16.sp,
+                        text = "جاري هندسة الفكرة والحل المبتكر...",
+                        fontSize = 15.sp,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onPrimary
                     )
@@ -209,13 +400,13 @@ fun GeneratorScreen(
                     horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     Icon(
-                        imageVector = Icons.Default.AutoAwesome,
+                        imageVector = if (userIdeaInput.isBlank()) Icons.Default.AutoAwesome else Icons.Default.PlayArrow,
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.onPrimary
                     )
                     Text(
-                        text = "اقترح علي فكرة ذكية",
-                        fontSize = 16.sp,
+                        text = if (userIdeaInput.isBlank()) "ابتكر لي فكرة ذكية ومخصصة ✨" else "حلل فكرتي وتوليد البرومبت والحل 🚀",
+                        fontSize = 15.sp,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onPrimary
                     )
@@ -592,6 +783,82 @@ fun GeneratorScreen(
                                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                                             modifier = Modifier.weight(1f)
                                         )
+                                    }
+                                }
+                            }
+
+                            // --- ENGINEERED AI PROMPT SECTION (برومبت الذكاء الاصطناعي المهندس) ---
+                            val promptText = idea.optimizedPrompt ?: ""
+                            if (promptText.isNotBlank()) {
+                                val clipboardManager = LocalClipboardManager.current
+                                val context = LocalContext.current
+
+                                Divider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+
+                                Column(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.AutoAwesome,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                        Text(
+                                            text = "برومبت الذكاء الاصطناعي المهندس لجهازك 🧠:",
+                                            fontSize = 13.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.onSurface
+                                        )
+                                    }
+
+                                    Card(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        shape = RoundedCornerShape(12.dp),
+                                        colors = CardDefaults.cardColors(
+                                            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
+                                        ),
+                                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.2f))
+                                    ) {
+                                        Column(
+                                            modifier = Modifier.padding(12.dp),
+                                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                                        ) {
+                                            Text(
+                                                text = promptText,
+                                                fontSize = 11.sp,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                lineHeight = 18.sp,
+                                                modifier = Modifier.fillMaxWidth()
+                                            )
+
+                                            Button(
+                                                onClick = {
+                                                    clipboardManager.setText(AnnotatedString(promptText))
+                                                    Toast.makeText(context, "تم نسخ البرومبت بنجاح! جاهز للاستخدام مع ChatGPT أو Gemini.", Toast.LENGTH_SHORT).show()
+                                                },
+                                                modifier = Modifier.align(Alignment.End).height(36.dp),
+                                                colors = ButtonDefaults.buttonColors(
+                                                    containerColor = MaterialTheme.colorScheme.primary
+                                                ),
+                                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                                                shape = RoundedCornerShape(8.dp)
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Default.ContentCopy,
+                                                    contentDescription = null,
+                                                    tint = MaterialTheme.colorScheme.onPrimary,
+                                                    modifier = Modifier.size(12.dp)
+                                                )
+                                                Spacer(modifier = Modifier.width(6.dp))
+                                                Text("نسخ البرومبت", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimary)
+                                            }
+                                        }
                                     }
                                 }
                             }
